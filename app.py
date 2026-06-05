@@ -14,7 +14,7 @@ def split_message(text, max_length=4000):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     try:
-        bot.reply_to(message, "👋 হ্যালো! আমি আপনার এআই অ্যাসিস্ট্যান্ট। আমাকে যেকোনো প্রশ্ন জিজ্ঞেস করতে পারেন।")
+        bot.reply_to(message, "👋 হ্যালো! আমি আপনার সুপার স্মার্ট বট। আমাকে প্রশ্ন করুন, আমি ইন্টারনেট খুঁজে উত্তর আনবোই!")
     except:
         pass
 
@@ -27,24 +27,45 @@ def handle_ai_response(message):
     except:
         pass
         
-    try:
-        # সরাসরি সবচেয়ে ফাস্ট প্রোভাইডার ব্যবহার করার চেষ্টা
-        response = g4f.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": message.text}],
-            # provider=g4f.Provider.Blackbox (অটোমেটিক সবচেয়ে ফাস্টটি বেছে নেওয়ার জন্য এটি ফাঁকা রাখা হলো)
-        )
-        
-        # রেসপন্স ঠিকঠাক আসলে মেসেজ পাঠাবে
-        if isinstance(response, str) and response.strip() != "":
-            for msg in split_message(response):
-                bot.send_message(user_id, msg)
-        else:
-            bot.send_message(user_id, "দুঃখিত, আমি ঠিক বুঝতে পারিনি। আবার বলবেন?")
+    ai_reply = ""
+    
+    # 🎯 এখানে বটকে বলে দেওয়া হলো সে পর্যায়ক্রমে কাদের কাছে উত্তর খুঁজবে
+    models_to_try = [
+        "gemini-pro",        # ১. প্রথমে যাবে গুগলের জেমিনির কাছে
+        "gpt-3.5-turbo",     # ২. জেমিনি ফেইল করলে যাবে চ্যাটজিপিটি-র কাছে
+        "claude-3-opus",     # ৩. সেটাও ফেইল করলে যাবে ক্লড (Claude) এর কাছে
+        "llama-3-8b-instruct" # ৪. সবশেষে যাবে মেটার লামার (Llama) কাছে
+    ]
+    
+    # লুপ (Loop) চালিয়ে একটার পর একটা চেক করা
+    for model_name in models_to_try:
+        try:
+            response = g4f.ChatCompletion.create(
+                model=model_name, 
+                messages=[{"role": "user", "content": message.text}]
+            )
             
+            # যদি উত্তর ঠিকঠাক আসে এবং ফাঁকা না হয়
+            if isinstance(response, str) and response.strip() != "":
+                ai_reply = response
+                # উত্তর পেয়ে গেলে 'break' দিয়ে আর অন্য এআই-এর কাছে যাবে না, এখানেই থেমে যাবে
+                break 
+                
+        except Exception as e:
+            # কোনো এআই ফেইল করলে চুপ করে পরেরটার কাছে চলে যাবে (continue)
+            print(f"{model_name} Failed: {e}")
+            continue 
+
+    # যদি উপরের ৪টি এআই-ই একবারে ফেইল করে (যেটা হওয়ার চান্স ১%), তখন এই মেসেজ দেবে
+    if not ai_reply:
+        ai_reply = "দুঃখিত, এই মুহূর্তে ইন্টারনেটের সব এআই সার্ভার ডাউন আছে। একটু পর আবার মেসেজ দিন, আমি ঠিক উত্তর দিয়ে দেব!"
+
+    # মেসেজ পাঠানো
+    try:
+        for msg in split_message(ai_reply):
+            bot.send_message(user_id, msg)
     except Exception as e:
-        # কোনো এরর আসলে ইউজারকে কোনো বিরক্তিকর মেসেজ দেবে না, শুধু সার্ভারে লগ করে রাখবে
-        print(f"AI Error: {e}")
+        print(f"Message Send Error: {e}")
 
 @app.post("/webhook")
 async def process_webhook(request: Request):
@@ -54,7 +75,6 @@ async def process_webhook(request: Request):
             update = telebot.types.Update.de_json(json_string.decode('utf-8'))
             
             bot.process_new_updates([update])
-        # সব অবস্থাতেই 200 OK পাঠাবে যাতে টেলিগ্রাম লুপ না তৈরি করে
         return Response(status_code=200)
     except Exception as e:
         print(f"Webhook Error: {e}")
@@ -62,4 +82,5 @@ async def process_webhook(request: Request):
 
 @app.get("/")
 def read_root():
-    return {"status": "Fast AI Bot is running smoothly!"}
+    return {"status": "Ultimate Multi-AI Bot is running!"}
+            
