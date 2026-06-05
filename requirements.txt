@@ -1,4 +1,4 @@
 fastapi
 pyTelegramBotAPI
-g4f
+requests
 uvicorn
