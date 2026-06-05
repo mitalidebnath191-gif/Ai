@@ -1,10 +1,10 @@
 import os
 import telebot
 from fastapi import FastAPI, Request, Response
-import g4f
-# শুধু সেই প্রোভাইডারগুলো ইমপোর্ট করছি যারা Vercel-এ ব্লক হয় না
-from g4f.Provider import PollinationsAI, Blackbox, DuckDuckGo
+import requests
+import urllib.parse
 
+# টোকেন সেটআপ
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8663805678:AAEKwFhAEtfkuH04hueFsWQOswzqdZYoiY8")
 
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
@@ -16,7 +16,7 @@ def split_message(text, max_length=4000):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     try:
-        bot.reply_to(message, "👋 হ্যালো! আমি এখন নতুন অ্যান্টি-ব্লক সিস্টেম নিয়ে রেডি!")
+        bot.reply_to(message, "👋 হ্যালো! আমি এখন ডাইরেক্ট API এর মাধ্যমে সংযুক্ত। আমাকে যেকোনো প্রশ্ন করতে পারেন!")
     except:
         pass
 
@@ -29,37 +29,30 @@ def handle_ai_response(message):
     except:
         pass
         
-    ai_reply = ""
-    
-    # 🎯 Vercel-এর জন্য সবচেয়ে নিরাপদ ৩টি প্রোভাইডার
-    safe_providers = [PollinationsAI, Blackbox, DuckDuckGo]
-    
-    for provider in safe_providers:
-        try:
-            # নির্দিষ্ট প্রোভাইডার ব্যবহার করে উত্তর আনা
-            response = g4f.ChatCompletion.create(
-                model=g4f.models.default, 
-                messages=[{"role": "user", "content": message.text}],
-                provider=provider
-            )
-            
-            if isinstance(response, str) and response.strip() != "":
-                ai_reply = response
-                break # উত্তর পেলেই লুপ থেকে বেরিয়ে যাবে
-                
-        except Exception as e:
-            print(f"{provider.__name__} Failed: {e}")
-            continue
-
-    # যদি ৩টি নিরাপদ প্রোভাইডারও ডাউন থাকে
-    if not ai_reply:
-        ai_reply = "দুঃখিত, এখন ইন্টারনেট থেকে ডেটা আনতে একটু সমস্যা হচ্ছে। একটু পর আবার ট্রাই করুন।"
-
     try:
+        # g4f এর বদলে সরাসরি Pollinations AI এর ডাইরেক্ট ওয়েব API ব্যবহার (অনেক ফাস্ট এবং ক্র্যাশ-ফ্রি)
+        encoded_prompt = urllib.parse.quote(message.text)
+        url = f"https://text.pollinations.ai/{encoded_prompt}"
+        
+        # API থেকে রেসপন্স আনা
+        response = requests.get(url, timeout=15)
+        
+        if response.status_code == 200 and response.text:
+            ai_reply = response.text
+        else:
+            ai_reply = "দুঃখিত, আমি এই মুহূর্তে উত্তর তৈরি করতে পারছি না।"
+            
+        # মেসেজ পাঠানো
         for msg in split_message(ai_reply):
             bot.send_message(user_id, msg)
+            
     except Exception as e:
-        print(f"Send Error: {e}")
+        print(f"Direct API Error: {e}")
+        # সার্ভার থেকে কোনো এরর আসলে চুপ না থেকে ইউজারকে জানাবে
+        try:
+            bot.send_message(user_id, "⚠️ একটু সমস্যা হচ্ছে, দয়া করে আবার প্রশ্ন করুন।")
+        except:
+            pass
 
 @app.post("/webhook")
 async def process_webhook(request: Request):
@@ -76,5 +69,5 @@ async def process_webhook(request: Request):
 
 @app.get("/")
 def read_root():
-    return {"status": "Anti-Block AI Bot is running!"}
-            
+    return {"status": "Direct API Bot is running without crashes!"}
+        
