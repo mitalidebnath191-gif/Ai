@@ -28,24 +28,21 @@ def handle_ai_response(message):
         pass
         
     try:
-        # POST রিকোয়েস্টের মাধ্যমে পাঠানো হচ্ছে (যাতে বাংলা বা বড় টেক্সটে সমস্যা না হয়)
-        url = "https://text.pollinations.ai/openai"
-        headers = {
-            "Content-Type": "application/json"
-        }
+        # সঠিক URL এবং সাধারণ POST রিকোয়েস্ট
+        url = "https://text.pollinations.ai/"
         payload = {
             "messages": [{"role": "user", "content": message.text}],
-            "model": "gpt-4o" # সবচেয়ে স্মার্ট এবং ফাস্ট মডেল
+            "model": "openai" # এটি অটোমেটিক সবচেয়ে ভালো মডেলটি বেছে নেবে
         }
         
         # API থেকে রেসপন্স আনা
-        response = requests.post(url, headers=headers, json=payload, timeout=15)
+        response = requests.post(url, json=payload, timeout=15)
         
-        if response.status_code == 200:
-            result = response.json()
-            ai_reply = result['choices'][0]['message']['content']
+        # যদি রিকোয়েস্ট সফল হয় (200), তবে সরাসরি টেক্সটটাই হলো আমাদের উত্তর
+        if response.status_code == 200 and response.text:
+            ai_reply = response.text
         else:
-            ai_reply = "দুঃখিত, আমি এই মুহূর্তে উত্তর তৈরি করতে পারছি না।"
+            ai_reply = f"দুঃখিত, আমি এই মুহূর্তে উত্তর তৈরি করতে পারছি না। (সার্ভার স্ট্যাটাস: {response.status_code})"
             
         # মেসেজ পাঠানো
         for msg in split_message(ai_reply):
@@ -54,7 +51,7 @@ def handle_ai_response(message):
     except Exception as e:
         print(f"API Error: {e}")
         try:
-            bot.send_message(user_id, "⚠️ একটু সমস্যা হচ্ছে, দয়া করে আবার প্রশ্ন করুন।")
+            bot.send_message(user_id, "⚠️ রেসপন্স আনতে সমস্যা হচ্ছে, দয়া করে একটু পর আবার চেষ্টা করুন।")
         except:
             pass
 
@@ -73,5 +70,5 @@ async def process_webhook(request: Request):
 
 @app.get("/")
 def read_root():
-    return {"status": "POST API Bot is running perfectly!"}
-        
+    return {"status": "Perfect API Bot is running!"}
+                             
