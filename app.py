@@ -2,9 +2,7 @@ import os
 import telebot
 from fastapi import FastAPI, Request, Response
 import requests
-import urllib.parse
 
-# টোকেন সেটআপ
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8663805678:AAEKwFhAEtfkuH04hueFsWQOswzqdZYoiY8")
 
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
@@ -16,7 +14,7 @@ def split_message(text, max_length=4000):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     try:
-        bot.reply_to(message, "👋 হ্যালো! আমি এখন ডাইরেক্ট API এর মাধ্যমে সংযুক্ত। আমাকে যেকোনো প্রশ্ন করতে পারেন!")
+        bot.reply_to(message, "👋 হ্যালো! আমি এখন সম্পূর্ণ প্রস্তুত। আমাকে যেকোনো বড় প্রশ্ন বা বাংলায় লিখতে পারেন!")
     except:
         pass
 
@@ -30,15 +28,22 @@ def handle_ai_response(message):
         pass
         
     try:
-        # g4f এর বদলে সরাসরি Pollinations AI এর ডাইরেক্ট ওয়েব API ব্যবহার (অনেক ফাস্ট এবং ক্র্যাশ-ফ্রি)
-        encoded_prompt = urllib.parse.quote(message.text)
-        url = f"https://text.pollinations.ai/{encoded_prompt}"
+        # POST রিকোয়েস্টের মাধ্যমে পাঠানো হচ্ছে (যাতে বাংলা বা বড় টেক্সটে সমস্যা না হয়)
+        url = "https://text.pollinations.ai/openai"
+        headers = {
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "messages": [{"role": "user", "content": message.text}],
+            "model": "gpt-4o" # সবচেয়ে স্মার্ট এবং ফাস্ট মডেল
+        }
         
         # API থেকে রেসপন্স আনা
-        response = requests.get(url, timeout=15)
+        response = requests.post(url, headers=headers, json=payload, timeout=15)
         
-        if response.status_code == 200 and response.text:
-            ai_reply = response.text
+        if response.status_code == 200:
+            result = response.json()
+            ai_reply = result['choices'][0]['message']['content']
         else:
             ai_reply = "দুঃখিত, আমি এই মুহূর্তে উত্তর তৈরি করতে পারছি না।"
             
@@ -47,8 +52,7 @@ def handle_ai_response(message):
             bot.send_message(user_id, msg)
             
     except Exception as e:
-        print(f"Direct API Error: {e}")
-        # সার্ভার থেকে কোনো এরর আসলে চুপ না থেকে ইউজারকে জানাবে
+        print(f"API Error: {e}")
         try:
             bot.send_message(user_id, "⚠️ একটু সমস্যা হচ্ছে, দয়া করে আবার প্রশ্ন করুন।")
         except:
@@ -69,5 +73,5 @@ async def process_webhook(request: Request):
 
 @app.get("/")
 def read_root():
-    return {"status": "Direct API Bot is running without crashes!"}
+    return {"status": "POST API Bot is running perfectly!"}
         
