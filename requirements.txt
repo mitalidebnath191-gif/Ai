@@ -1,4 +1,4 @@
-pyTelegramBotAPI
-duckduckgo-search>=6.0.0
 fastapi
+pyTelegramBotAPI
+g4f
 uvicorn
