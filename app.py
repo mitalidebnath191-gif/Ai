@@ -3,7 +3,9 @@ import telebot
 from fastapi import FastAPI, Request, Response
 import requests
 
+# Vercel থেকে টোকেন এবং এপিআই কি নেওয়া হবে (নিরাপত্তার জন্য)
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8663805678:AAEKwFhAEtfkuH04hueFsWQOswzqdZYoiY8")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
 
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 app = FastAPI()
@@ -14,7 +16,7 @@ def split_message(text, max_length=4000):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     try:
-        bot.reply_to(message, "👋 হ্যালো! আমি এখন সম্পূর্ণ প্রস্তুত। আমাকে যেকোনো বড় প্রশ্ন বা বাংলায় লিখতে পারেন!")
+        bot.reply_to(message, "👋 হ্যালো! আমি Groq API দ্বারা চালিত। আমি সুপার ফাস্ট! আমাকে যেকোনো প্রশ্ন করতে পারেন।")
     except:
         pass
 
@@ -28,21 +30,25 @@ def handle_ai_response(message):
         pass
         
     try:
-        # সঠিক URL এবং সাধারণ POST রিকোয়েস্ট
-        url = "https://text.pollinations.ai/"
+        # তোমার দেওয়া Groq এর ডাইরেক্ট API লিংক
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {GROQ_API_KEY}"
+        }
         payload = {
-            "messages": [{"role": "user", "content": message.text}],
-            "model": "openai" # এটি অটোমেটিক সবচেয়ে ভালো মডেলটি বেছে নেবে
+            "model": "llama3-8b-8192", # Groq-এর সবচেয়ে ফাস্ট এবং ফ্রি মডেল
+            "messages": [{"role": "user", "content": message.text}]
         }
         
         # API থেকে রেসপন্স আনা
-        response = requests.post(url, json=payload, timeout=15)
+        response = requests.post(url, headers=headers, json=payload, timeout=15)
         
-        # যদি রিকোয়েস্ট সফল হয় (200), তবে সরাসরি টেক্সটটাই হলো আমাদের উত্তর
-        if response.status_code == 200 and response.text:
-            ai_reply = response.text
+        if response.status_code == 200:
+            result = response.json()
+            ai_reply = result['choices'][0]['message']['content']
         else:
-            ai_reply = f"দুঃখিত, আমি এই মুহূর্তে উত্তর তৈরি করতে পারছি না। (সার্ভার স্ট্যাটাস: {response.status_code})"
+            ai_reply = f"দুঃখিত, একটি সমস্যা হয়েছে। Error: {response.text}"
             
         # মেসেজ পাঠানো
         for msg in split_message(ai_reply):
@@ -51,7 +57,7 @@ def handle_ai_response(message):
     except Exception as e:
         print(f"API Error: {e}")
         try:
-            bot.send_message(user_id, "⚠️ রেসপন্স আনতে সমস্যা হচ্ছে, দয়া করে একটু পর আবার চেষ্টা করুন।")
+            bot.send_message(user_id, "⚠️ একটু সমস্যা হচ্ছে, দয়া করে আবার চেষ্টা করুন।")
         except:
             pass
 
@@ -70,5 +76,5 @@ async def process_webhook(request: Request):
 
 @app.get("/")
 def read_root():
-    return {"status": "Perfect API Bot is running!"}
-                             
+    return {"status": "Groq API Bot is running at lightspeed!"}
+        
