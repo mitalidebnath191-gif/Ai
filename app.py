@@ -2,6 +2,8 @@ import os
 import telebot
 from fastapi import FastAPI, Request, Response
 import g4f
+# শুধু সেই প্রোভাইডারগুলো ইমপোর্ট করছি যারা Vercel-এ ব্লক হয় না
+from g4f.Provider import PollinationsAI, Blackbox, DuckDuckGo
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8663805678:AAEKwFhAEtfkuH04hueFsWQOswzqdZYoiY8")
 
@@ -14,7 +16,7 @@ def split_message(text, max_length=4000):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     try:
-        bot.reply_to(message, "👋 হ্যালো! আমি আপনার সুপার স্মার্ট বট। আমাকে প্রশ্ন করুন, আমি ইন্টারনেট খুঁজে উত্তর আনবোই!")
+        bot.reply_to(message, "👋 হ্যালো! আমি এখন নতুন অ্যান্টি-ব্লক সিস্টেম নিয়ে রেডি!")
     except:
         pass
 
@@ -29,43 +31,35 @@ def handle_ai_response(message):
         
     ai_reply = ""
     
-    # 🎯 এখানে বটকে বলে দেওয়া হলো সে পর্যায়ক্রমে কাদের কাছে উত্তর খুঁজবে
-    models_to_try = [
-        "gemini-pro",        # ১. প্রথমে যাবে গুগলের জেমিনির কাছে
-        "gpt-3.5-turbo",     # ২. জেমিনি ফেইল করলে যাবে চ্যাটজিপিটি-র কাছে
-        "claude-3-opus",     # ৩. সেটাও ফেইল করলে যাবে ক্লড (Claude) এর কাছে
-        "llama-3-8b-instruct" # ৪. সবশেষে যাবে মেটার লামার (Llama) কাছে
-    ]
+    # 🎯 Vercel-এর জন্য সবচেয়ে নিরাপদ ৩টি প্রোভাইডার
+    safe_providers = [PollinationsAI, Blackbox, DuckDuckGo]
     
-    # লুপ (Loop) চালিয়ে একটার পর একটা চেক করা
-    for model_name in models_to_try:
+    for provider in safe_providers:
         try:
+            # নির্দিষ্ট প্রোভাইডার ব্যবহার করে উত্তর আনা
             response = g4f.ChatCompletion.create(
-                model=model_name, 
-                messages=[{"role": "user", "content": message.text}]
+                model=g4f.models.default, 
+                messages=[{"role": "user", "content": message.text}],
+                provider=provider
             )
             
-            # যদি উত্তর ঠিকঠাক আসে এবং ফাঁকা না হয়
             if isinstance(response, str) and response.strip() != "":
                 ai_reply = response
-                # উত্তর পেয়ে গেলে 'break' দিয়ে আর অন্য এআই-এর কাছে যাবে না, এখানেই থেমে যাবে
-                break 
+                break # উত্তর পেলেই লুপ থেকে বেরিয়ে যাবে
                 
         except Exception as e:
-            # কোনো এআই ফেইল করলে চুপ করে পরেরটার কাছে চলে যাবে (continue)
-            print(f"{model_name} Failed: {e}")
-            continue 
+            print(f"{provider.__name__} Failed: {e}")
+            continue
 
-    # যদি উপরের ৪টি এআই-ই একবারে ফেইল করে (যেটা হওয়ার চান্স ১%), তখন এই মেসেজ দেবে
+    # যদি ৩টি নিরাপদ প্রোভাইডারও ডাউন থাকে
     if not ai_reply:
-        ai_reply = "দুঃখিত, এই মুহূর্তে ইন্টারনেটের সব এআই সার্ভার ডাউন আছে। একটু পর আবার মেসেজ দিন, আমি ঠিক উত্তর দিয়ে দেব!"
+        ai_reply = "দুঃখিত, এখন ইন্টারনেট থেকে ডেটা আনতে একটু সমস্যা হচ্ছে। একটু পর আবার ট্রাই করুন।"
 
-    # মেসেজ পাঠানো
     try:
         for msg in split_message(ai_reply):
             bot.send_message(user_id, msg)
     except Exception as e:
-        print(f"Message Send Error: {e}")
+        print(f"Send Error: {e}")
 
 @app.post("/webhook")
 async def process_webhook(request: Request):
@@ -82,5 +76,5 @@ async def process_webhook(request: Request):
 
 @app.get("/")
 def read_root():
-    return {"status": "Ultimate Multi-AI Bot is running!"}
+    return {"status": "Anti-Block AI Bot is running!"}
             
