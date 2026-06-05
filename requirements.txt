@@ -1,0 +1,4 @@
+pyTelegramBotAPI
+duckduckgo_search
+fastapi
+uvicorn
